@@ -29,13 +29,13 @@ if [[ $SAVE = 1 ]]; then
 	# Need to save the ref before it gets overwritten or deleted
 	if [[ "$REF" = refs/heads/* ]]; then
 		NAME=${REF#refs/heads/}
-		PREFIX="backups/branches/$NAME"
+		PREFIX="backups/$NAME"
 	else
 		echo "[backup-branch-on-rebase] $REF is not a branch; aborting."
 		exit 1;
 	fi
 
-	# Changed refs are stored as backups/backups/<name>/<increment>
+	# Changed refs are stored as backups/<name>/<increment>
 	# branches, where "increment" starts at 1 and monotonically increases
 	# thereafter. The code below finds the largest <increment> and increments
 	# it by one.
