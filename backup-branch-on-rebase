@@ -1,5 +1,10 @@
 #!/bin/bash
 #
+# Save any head (== branch) about to be deleted or rebased.
+#
+# Changed heads are stored as backups/<name>/<increment> branches, where
+# "increment" starts at 1 and monotonically increases thereafter. 
+#
 # Args (see 'man githooks', look for update hook):
 #    $1: the name of the ref being updated (e.g. refs/heads/master or refs/tags/foo)
 #    $2: the old object name stored in the ref,
@@ -9,52 +14,37 @@
 # Note that $3 can be 0000000000000000000000000000000000000000 if this is ref deletion
 #
 
-# apply only to repos in LSST/ and contrib/ hierarchy
-[[ $GL_REPO != LSST/* && $GL_REPO != contrib/* ]] && exit 0;
-
 REF="$1"
 OLDSHA="$2"
 NEWSHA="$3"
 
-SAVE=0
+#
+# Exit if not matching criteria
+#
+[[ $GL_REPO != LSST/* && $GL_REPO != contrib/* ]]	&& exit 0;	# apply only to repos in LSST/ and contrib/ hierarchy
 
-[[ "$OLDSHA" = 0000000000000000000000000000000000000000 ]] && exit 0;   # ref creation
-[[ "$NEWSHA" = 0000000000000000000000000000000000000000 ]] && SAVE=1;   # ref deletion
-[[ $SAVE = 0 && ! -z $(git rev-list "$OLDSHA" ^"$NEWSHA") ]] && SAVE=1; # rebase
+[[ "$REF" != refs/heads/* ]]				&& exit 0;	# Only save branches (tags not saved yet, deleting of tags should be access-controlled)
+[[ "$REF" = refs/heads/backups/* ]]			&& exit 0;	# Don't save deletions of backups (these should be access-controlled in gitolite config)
 
-# Don't save tags (not implemented yet; shouldn't be allowed in gitolite config)
-[[ "$REF" = refs/tags/* ]] && SAVE=0
+[[ "$OLDSHA"  = 0000000000000000000000000000000000000000 ]] && exit 0;   # ref creation
+[[ "$NEWSHA" != 0000000000000000000000000000000000000000 && -z $(git rev-list "$OLDSHA" ^"$NEWSHA") ]] && exit 0; # not deletion or rebase
 
-# Don't save deletions of backups (these should be access-controled in gitolite config)
-[[ "$REF" = refs/heads/backups/* ]] && SAVE=0
+#
+# Create a backup branch pointing to $OLDSHA
+#
+next_increment()
+{
+	for r in $(git show-ref --heads | cut -d\  -f 2 | grep "^refs/heads/$1/" ); do
+		echo ${r#refs/heads/$1/}
+	done | sort -n | tail -n 1
+}
+NAME=${REF#refs/heads/}
+PREFIX="backups/$NAME"
+INCREMENT=$(next_increment $PREFIX)
+((INCREMENT++))
+NEWBRANCH="$PREFIX/$INCREMENT"
 
-if [[ $SAVE = 1 ]]; then
-	# Need to save the ref before it gets overwritten or deleted
-	if [[ "$REF" = refs/heads/* ]]; then
-		NAME=${REF#refs/heads/}
-		PREFIX="backups/$NAME"
-	else
-		echo "[backup-branch-on-rebase] $REF is not a branch; aborting."
-		exit 1;
-	fi
-
-	# Changed refs are stored as backups/<name>/<increment>
-	# branches, where "increment" starts at 1 and monotonically increases
-	# thereafter. The code below finds the largest <increment> and increments
-	# it by one.
-	next_increment()
-	{
-		for r in $(git show-ref --heads | cut -d\  -f 2 | grep "^refs/heads/$PREFIX/" ); do
-			echo ${r#refs/heads/$PREFIX/}
-		done | sort -n | tail -n 1
-	}
-	INCREMENT=$(next_increment)
-	((INCREMENT++))
-
-	# Branch
-	NEWBRANCH="$PREFIX/$INCREMENT"
-	git branch "$NEWBRANCH" "$OLDSHA" || { echo "[backup-branch-on-rebase] failed to save $NAME as $NEWBRANCH; aborting."; exit 1; }
-	echo "[backup-branch-on-rebase] saved $NAME as $NEWBRANCH."
-fi
+git branch "$NEWBRANCH" "$OLDSHA" || { echo "[backup-branch-on-rebase] failed to save $NAME as $NEWBRANCH; aborting."; exit 1; }
+echo "[backup-branch-on-rebase] saved $NAME as $NEWBRANCH."
 
 exit 0;
