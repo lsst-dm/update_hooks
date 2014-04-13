@@ -9,6 +9,9 @@
 # Note that $3 can be 0000000000000000000000000000000000000000 if this is ref deletion
 #
 
+# apply only to repos in LSST/ and contrib/ hierarchy
+[[ $GL_REPO != LSST/* && $GL_REPO != contrib/* ]] && exit 0;
+
 REF="$1"
 OLDSHA="$2"
 NEWSHA="$3"
