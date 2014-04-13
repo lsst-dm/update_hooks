@@ -1,0 +1,6 @@
+This repository contains additional on-update hooks for gitolite
+
+Its contents should be cloned into:
+
+	/home/git/share/gitolite/hooks/common/update.secondary.d
+
