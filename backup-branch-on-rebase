@@ -25,6 +25,7 @@ NEWSHA="$3"
 
 [[ "$REF" != refs/heads/* ]]				&& exit 0;	# Only save branches (tags not saved yet, deleting of tags should be access-controlled)
 [[ "$REF" = refs/heads/backups/* ]]			&& exit 0;	# Don't save deletions of backups (these should be access-controlled in gitolite config)
+[[ "$REF" = refs/backups/* ]]				&& exit 0;	# Don't save deletions of backups (these should be access-controlled in gitolite config)
 
 [[ "$OLDSHA"  = 0000000000000000000000000000000000000000 ]] && exit 0;   # ref creation
 [[ "$NEWSHA" != 0000000000000000000000000000000000000000 && -z $(git rev-list "$OLDSHA" ^"$NEWSHA") ]] && exit 0; # not deletion or rebase
@@ -34,17 +35,17 @@ NEWSHA="$3"
 #
 next_increment()
 {
-	for r in $(git show-ref --heads | cut -d\  -f 2 | grep "^refs/heads/$1/" ); do
-		echo ${r#refs/heads/$1/}
+	for r in $(git show-ref | cut -d\  -f 2 | grep "^$1/" ); do
+		echo ${r#$1/}
 	done | sort -n | tail -n 1
 }
 NAME=${REF#refs/heads/}
-PREFIX="backups/$NAME"
+PREFIX="refs/backups/$NAME"
 INCREMENT=$(next_increment $PREFIX)
 ((INCREMENT++))
-NEWBRANCH="$PREFIX/$INCREMENT"
+BACKUPREF="$PREFIX/$INCREMENT"
 
-git branch "$NEWBRANCH" "$OLDSHA" || { echo "[backup-branch-on-rebase] failed to save $NAME as $NEWBRANCH; aborting."; exit 1; }
-echo "[backup-branch-on-rebase] saved $NAME as $NEWBRANCH."
+git update-ref "$BACKUPREF" "$OLDSHA" || { echo "[backup-branch-on-rebase] failed to save $NAME as $BACKUPREF; aborting."; exit 1; }
+echo "[backup-branch-on-rebase] saved $NAME as $BACKUPREF."
 
 exit 0;
